@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sorting Terminal — Garbage Classifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14150F;
+    --panel:#1D1F16;
+    --panel-border:#34362A;
+    --ink-muted:#9C9A8A;
+    --ink-bright:#F2EFE4;
+    --accent:#E8B923;
+    --paper:#F3ECDA;
+    --paper-ink:#241F16;
+    --stamp:#B43B1F;
+    --paper-line:#D9CFB4;
+
+    --c-cardboard:#B8804B;
+    --c-paper:#C9A876;
+    --c-plastic:#3E7CB1;
+    --c-metal:#7C8489;
+    --c-glass:#3F9C86;
+    --c-biological:#6B8E3A;
+    --c-battery:#B43B1F;
+    --c-trash:#5C574A;
+    --c-shoes:#A8622E;
+    --c-clothes:#7C5E9C;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% 0%, #1b1c14 0%, transparent 45%),
+      radial-gradient(circle at 100% 100%, #191a13 0%, transparent 40%),
+      var(--bg);
+    color:var(--ink-bright);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    padding:56px 24px 80px;
+  }
+
+  .wrap{ max-width:980px; margin:0 auto; }
+
+  header{ margin-bottom:44px; }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--accent);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:8px; height:8px;
+    background:var(--accent);
+    border-radius:50%;
+    box-shadow:0 0 0 3px rgba(232,185,35,0.18);
+  }
+
+  h1{
+    font-family:'Archivo Black', sans-serif;
+    font-size:clamp(32px, 5vw, 52px);
+    line-height:1.02;
+    margin:0 0 14px;
+    letter-spacing:-0.01em;
+  }
+
+  header p{
+    color:var(--ink-muted);
+    font-size:15px;
+    max-width:480px;
+    line-height:1.55;
+    margin:0;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:28px;
+    align-items:start;
+  }
+  @media (max-width: 800px){
+    .grid{ grid-template-columns: 1fr; }
+  }
+
+  /* ---------- SCANNER PANEL ---------- */
+  .scanner{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:6px;
+    padding:22px;
+    position:relative;
+  }
+  .scanner-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .scanner-label span:last-child{ color:var(--accent); }
+
+  #dropzone{
+    display:block;
+    border:1.5px dashed var(--panel-border);
+    border-radius:4px;
+    padding:36px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition: border-color .2s ease, background .2s ease;
+    position:relative;
+    overflow:hidden;
+    min-height:280px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+  }
+  #dropzone:hover, #dropzone.drag{
+    border-color:var(--accent);
+    background:rgba(232,185,35,0.04);
+  }
+
+  .scan-icon{ margin-bottom:16px; opacity:0.8; }
+
+  #dropzone .instruction{ font-size:14px; color:var(--ink-bright); font-weight:500; }
+  #dropzone .sub-instruction{ font-size:12.5px; color:var(--ink-muted); margin-top:6px; }
+  #dropzone .formats{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    color:var(--ink-muted);
+    margin-top:18px;
+    letter-spacing:0.06em;
+  }
+
+  input[type=file]{ display:none; }
+
+  #previewWrap{
+    position:relative;
+    width:100%;
+    height:100%;
+    display:none;
+  }
+  #preview{
+    width:100%;
+    max-height:280px;
+    object-fit:cover;
+    border-radius:3px;
+    display:block;
+  }
+  .scan-line{
+    position:absolute;
+    left:0; right:0;
+    height:2px;
+    background:linear-gradient(90deg, transparent, var(--accent), transparent);
+    box-shadow:0 0 12px 1px var(--accent);
+    animation: sweep 1.6s ease-in-out infinite;
+  }
+  @keyframes sweep{
+    0%{ top:0%; opacity:0; }
+    10%{ opacity:1; }
+    90%{ opacity:1; }
+    100%{ top:100%; opacity:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .scan-line{ animation:none; opacity:0.6; top:50%; }
+  }
+
+  .rescan-btn{
+    margin-top:14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-muted);
+    background:none;
+    border:1px solid var(--panel-border);
+    padding:8px 14px;
+    border-radius:3px;
+    cursor:pointer;
+    transition:color .15s, border-color .15s;
+  }
+  .rescan-btn:hover{ color:var(--accent); border-color:var(--accent); }
+
+  /* ---------- TICKET PANEL ---------- */
+  .ticket-slot{
+    position:relative;
+    padding-top:14px;
+  }
+  .perforation{
+    height:14px;
+    background-image: radial-gradient(circle, var(--bg) 3.5px, transparent 4px);
+    background-size:18px 18px;
+    background-position: 9px 0;
+    position:relative;
+    z-index:2;
+  }
+
+  .ticket{
+    background:var(--paper);
+    color:var(--paper-ink);
+    border-radius:0 0 4px 4px;
+    padding:26px 26px 30px;
+    min-height:392px;
+    box-shadow:0 18px 40px -18px rgba(0,0,0,0.6);
+  }
+
+  .ticket-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    border-bottom:1px dashed var(--paper-line);
+    padding-bottom:14px;
+    margin-bottom:18px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:#5c5540;
+  }
+  .ticket-head .ticket-id{ font-weight:600; color:var(--paper-ink); }
+
+  .empty-state{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    height:280px;
+    color:#8b8368;
+  }
+  .empty-state .glyph{
+    font-family:'Archivo Black', sans-serif;
+    font-size:13px;
+    letter-spacing:0.1em;
+    border:1.5px dashed #c9bd97;
+    border-radius:50%;
+    width:64px; height:64px;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:16px;
+  }
+  .empty-state p{ font-size:13px; max-width:220px; line-height:1.5; margin:0; }
+
+  .result-body{ display:none; }
+
+  .stamp-row{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    margin-bottom:4px;
+  }
+  .stamp{
+    font-family:'Archivo Black', sans-serif;
+    font-size:clamp(26px, 4vw, 34px);
+    text-transform:uppercase;
+    color:var(--stamp);
+    letter-spacing:0.01em;
+    display:inline-block;
+    transform:rotate(-2.2deg);
+    border:3px solid var(--stamp);
+    padding:4px 12px;
+    border-radius:3px;
+    opacity:0.92;
+    line-height:1.1;
+  }
+
+  .confidence-line{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:#5c5540;
+    margin:14px 0 20px;
+  }
+  .confidence-line b{ color:var(--paper-ink); font-weight:600; }
+
+  .manifest-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:#8b8368;
+    margin-bottom:10px;
+  }
+
+  .manifest-row{
+    display:grid;
+    grid-template-columns: 14px 90px 1fr 46px;
+    align-items:center;
+    gap:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    padding:5px 0;
+  }
+  .swatch{ width:10px; height:10px; border-radius:2px; }
+  .manifest-row .label{ text-transform:capitalize; color:var(--paper-ink); }
+  .bar-track{
+    height:6px;
+    background:#e6ddc2;
+    border-radius:3px;
+    overflow:hidden;
+  }
+  .bar-fill{ height:100%; border-radius:3px; }
+  .manifest-row .pct{ text-align:right; color:#5c5540; }
+  .manifest-row.top .label, .manifest-row.top .pct{ color:var(--stamp); font-weight:600; }
+
+  /* ---------- LEGEND / FOOTER ---------- */
+  .legend{
+    margin-top:40px;
+    padding-top:20px;
+    border-top:1px solid var(--panel-border);
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px 22px;
+  }
+  .legend-item{
+    display:flex; align-items:center; gap:7px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-muted);
+    text-transform:capitalize;
+  }
+  .legend-dot{ width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+
+  .error-msg{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--stamp);
+    margin-top:10px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Terminal 07 — Inbound Scan</div>
+    <h1>Drop it.<br>We'll sort it.</h1>
+    <p>A from-scratch convolutional network reads the image and routes it to one of ten waste streams — cardboard, paper, plastic, metal, glass, biological, battery, trash, shoes, or clothes.</p>
+  </header>
+
+  <div class="grid">
+
+    <!-- SCANNER -->
+    <div class="scanner">
+      <div class="scanner-label"><span>Input feed</span><span id="statusTag">Idle</span></div>
+
+      <label id="dropzone" for="fileInput">
+        <input type="file" id="fileInput" accept="image/*">
+
+        <div id="placeholderContent">
+          <svg class="scan-icon" width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#9C9A8A" stroke-width="1.4">
+            <path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3" stroke-linecap="round"/>
+            <line x1="4" y1="12" x2="20" y2="12" stroke-dasharray="2 3"/>
+          </svg>
+          <div class="instruction">Click to choose an image, or drop it here</div>
+          <div class="sub-instruction">One item at a time, please</div>
+          <div class="formats">JPG · PNG · WEBP — UP TO 10MB</div>
+        </div>
+
+        <div id="previewWrap">
+          <img id="preview" alt="scanned item">
+          <div class="scan-line" id="scanLine" style="display:none;"></div>
+        </div>
+      </label>
+
+      <div style="text-align:center;">
+        <button type="button" class="rescan-btn" id="rescanBtn" style="display:none;">Scan another item</button>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <!-- TICKET -->
+    <div class="ticket-slot">
+      <div class="perforation"></div>
+      <div class="ticket">
+        <div class="ticket-head">
+          <span>Sorting manifest</span>
+          <span class="ticket-id" id="ticketId">#—</span>
+        </div>
+
+        <div class="empty-state" id="emptyState">
+          <div class="glyph">?</div>
+          <p>No item scanned yet. Results print here once you drop an image.</p>
+        </div>
+
+        <div class="result-body" id="resultBody">
+          <div class="stamp-row">
+            <span class="stamp" id="stampClass">—</span>
+          </div>
+          <div class="confidence-line">Confidence: <b id="confidenceValue">—</b></div>
+
+          <div class="manifest-title">Full breakdown</div>
+          <div id="manifestList"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+</div>
+
+<script>
+const COLORS = {
+  cardboard:'var(--c-cardboard)', paper:'var(--c-paper)', plastic:'var(--c-plastic)',
+  metal:'var(--c-metal)', glass:'var(--c-glass)', biological:'var(--c-biological)',
+  battery:'var(--c-battery)', trash:'var(--c-trash)', shoes:'var(--c-shoes)', clothes:'var(--c-clothes)'
+};
+const FALLBACK = '#8b8368';
+
+const fileInput = document.getElementById('fileInput');
+const dropzone = document.getElementById('dropzone');
+const placeholderContent = document.getElementById('placeholderContent');
+const previewWrap = document.getElementById('previewWrap');
+const preview = document.getElementById('preview');
+const scanLine = document.getElementById('scanLine');
+const statusTag = document.getElementById('statusTag');
+const emptyState = document.getElementById('emptyState');
+const resultBody = document.getElementById('resultBody');
+const stampClass = document.getElementById('stampClass');
+const confidenceValue = document.getElementById('confidenceValue');
+const manifestList = document.getElementById('manifestList');
+const ticketId = document.getElementById('ticketId');
+const rescanBtn = document.getElementById('rescanBtn');
+const errorMsg = document.getElementById('errorMsg');
+
+let counter = Math.floor(100 + Math.random() * 800);
+
+fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+});
+rescanBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  resetUI();
+  fileInput.click();
+});
+
+async function handleFile(file){
+  if (!file) return;
+  errorMsg.textContent = '';
+
+  placeholderContent.style.display = 'none';
+  previewWrap.style.display = 'block';
+  preview.src = URL.createObjectURL(file);
+  scanLine.style.display = 'block';
+  rescanBtn.style.display = 'inline-block';
+  statusTag.textContent = 'Scanning…';
+
+  emptyState.style.display = 'none';
+  resultBody.style.display = 'none';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/predict', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Prediction failed. Try another image.');
+    }
+    const data = await res.json();
+    scanLine.style.display = 'none';
+    statusTag.textContent = 'Sorted';
+    renderResult(data);
+  } catch (err) {
+    scanLine.style.display = 'none';
+    statusTag.textContent = 'Error';
+    errorMsg.textContent = err.message;
+    emptyState.style.display = 'flex';
+  }
+}
+
+function renderResult(data){
+  counter += 1;
+  ticketId.textContent = '#' + String(counter).padStart(5, '0');
+
+  stampClass.textContent = data.predicted_class;
+  confidenceValue.textContent = (data.confidence * 100).toFixed(1) + '%';
+
+  const sorted = Object.entries(data.all_probabilities).sort((a,b) => b[1]-a[1]);
+  manifestList.innerHTML = sorted.map(([cls, p], i) => {
+    const color = COLORS[cls.toLowerCase()] || FALLBACK;
+    const pct = (p*100).toFixed(1);
+    return `
+      <div class="manifest-row ${i===0 ? 'top' : ''}">
+        <span class="swatch" style="background:${color}"></span>
+        <span class="label">${cls}</span>
+        <span class="bar-track"><span class="bar-fill" style="width:${pct}%; background:${color};"></span></span>
+        <span class="pct">${pct}%</span>
+      </div>`;
+  }).join('');
+
+  resultBody.style.display = 'block';
+}
+
+function resetUI(){
+  placeholderContent.style.display = 'flex';
+  previewWrap.style.display = 'none';
+  rescanBtn.style.display = 'none';
+  statusTag.textContent = 'Idle';
+  emptyState.style.display = 'flex';
+  resultBody.style.display = 'none';
+  errorMsg.textContent = '';
+  fileInput.value = '';
+}
+
+async function loadLegend(){
+  let classes = Object.keys(COLORS);
+  try {
+    const res = await fetch('/classes');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.classes && data.classes.length) classes = data.classes;
+    }
+  } catch (e) { /* fall back to default list */ }
+
+  document.getElementById('legend').innerHTML = classes.map(c => {
+    const color = COLORS[c.toLowerCase()] || FALLBACK;
+    return `<div class="legend-item"><span class="legend-dot" style="background:${color}"></span>${c}</div>`;
+  }).join('');
+}
+loadLegend();
+</script>
+</body>
+</html>
